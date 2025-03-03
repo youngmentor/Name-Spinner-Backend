@@ -18,7 +18,7 @@ const MeetingSchema: Schema = new Schema({
         name: { type: String, required: true },
         role: { type: String },
         email: { type: String },
-        department: { type: String, required: true },
+        department: { type: String, required: false },
         lastSelected: { type: Date },
         selectionCount: { type: Number, default: 0 }
     }]

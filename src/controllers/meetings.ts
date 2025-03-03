@@ -45,7 +45,6 @@ export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
                     name: row.name?.trim(),
                     role: row.role?.trim(),
                     email: row.email?.trim(),
-                    department: req.body.department,
                     selectionCount: 0,
                 }))
                 .filter((p) => p.name);
@@ -60,7 +59,6 @@ export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
                     name: row.name?.toString().trim() || row.Name?.toString().trim(),
                     role: row.role?.toString().trim() || row.Role?.toString().trim(),
                     email: row.email?.toString().trim() || row.Email?.toString().trim(),
-                    department: req.body.department,
                     selectionCount: 0,
                 }))
                 .filter((p) => p.name);
@@ -76,16 +74,12 @@ export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
         await Participant.bulkWrite(
             participants.map((p) => ({
                 updateOne: {
-                    filter: { name: p.name, department: p.department },
+                    filter: { name: p.name, email: p.email },
                     update: { $set: p },
                     upsert: true
                 }
             }))
         );
-
-        const allParticipants = await Participant.find({
-            department: req.body.department
-        }).sort({ name: 1 });
 
         const meeting = await Meeting.findById(meetingId);
         if (!meeting) {
@@ -93,9 +87,14 @@ export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
             return;
         }
 
+        // Get all participants we just added/updated
+        const addedParticipants = await Participant.find({
+            email: { $in: participants.map(p => p.email) }
+        }).sort({ name: 1 });
+
         const uniqueParticipants = [
             ...new Map(
-                [...meeting.participants, ...allParticipants].map((p) => [p.email, p])
+                [...meeting.participants, ...addedParticipants].map((p) => [p.email, p])
             ).values()
         ];
 
@@ -104,6 +103,7 @@ export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
         res.json({ message: "Participants added successfully", meeting });
     } catch (error) {
         res.status(500).json({ error: "Error adding participants to meeting" });
+        console.log(error)
     }
 };
 export const getOneMeetingParticipants: RequestHandler = async (req, res) => {
@@ -123,6 +123,7 @@ export const getOneMeetingParticipants: RequestHandler = async (req, res) => {
         res.status(500).json({ error: "Server error" });
     }
 };
+
 export const createMeeting: RequestHandler = async (req, res) => {
     try {
         const meeting = new Meeting(req.body);
