@@ -6,7 +6,7 @@ import csv from "csv-parser";
 import * as XLSX from "xlsx";
 
 
-export const getMeetings: RequestHandler = async (req, res) => {
+export const getAllMeetings: RequestHandler = async (req, res) => {
     try {
         const filter = req.query.department ? { department: req.query.department } : {};
         const meetings = await Meeting.find(filter).sort({ createdAt: -1 });
@@ -15,6 +15,7 @@ export const getMeetings: RequestHandler = async (req, res) => {
         res.status(500).json({ error: 'Error fetching meetings' });
     }
 };
+
 export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
     try {
         const { meetingId } = req.params;
@@ -72,7 +73,6 @@ export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
             return;
         }
 
-        // Insert or update participants in the database
         await Participant.bulkWrite(
             participants.map((p) => ({
                 updateOne: {
@@ -83,19 +83,16 @@ export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
             }))
         );
 
-        // Fetch updated participants from DB
         const allParticipants = await Participant.find({
             department: req.body.department
         }).sort({ name: 1 });
 
-        // Add participants to the meeting
         const meeting = await Meeting.findById(meetingId);
         if (!meeting) {
             res.status(404).json({ error: "Meeting not found" });
             return;
         }
 
-        // Ensure no duplicate participants in meeting
         const uniqueParticipants = [
             ...new Map(
                 [...meeting.participants, ...allParticipants].map((p) => [p.email, p])
@@ -109,7 +106,23 @@ export const addParticipantsToMeeting: RequestHandler = async (req, res) => {
         res.status(500).json({ error: "Error adding participants to meeting" });
     }
 };
+export const getOneMeetingParticipants: RequestHandler = async (req, res) => {
+    try {
+        const { meetingId } = req.params;
 
+        const meeting = await Meeting.findById(meetingId).populate("participants");
+
+        if (!meeting) {
+            res.status(404).json({ error: "Meeting not found" });
+            return;
+        }
+
+        res.json({ message: `All Participants  Loaded successfullly for ${meeting.department}`, participants: meeting.participants });
+    } catch (error) {
+        console.error("Error fetching meeting participants:", error);
+        res.status(500).json({ error: "Server error" });
+    }
+};
 export const createMeeting: RequestHandler = async (req, res) => {
     try {
         const meeting = new Meeting(req.body);
