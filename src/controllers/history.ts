@@ -51,7 +51,7 @@ export const createSelectionRecord: RequestHandler = async (req, res) => {
 
         await historyEntry.save({ session });
 
-        // Update participant's selection count and lastSelected date
+
         await Participant.findByIdAndUpdate(
             participantId,
             { $inc: { selectionCount: 1 }, $set: { lastSelected: new Date() } },
@@ -59,7 +59,7 @@ export const createSelectionRecord: RequestHandler = async (req, res) => {
         );
 
         await session.commitTransaction();
-        res.status(201).json(historyEntry);
+        res.status(201).json({ message: 'Selection record created successfully', data: historyEntry });
     } catch (error) {
         await session.abortTransaction();
         console.error('Error in createSelectionRecord:', error); // Log the full error
