@@ -28,6 +28,18 @@ export const createSelectionRecord: RequestHandler = async (req, res) => {
     try {
         const { meetingId, meetingName, department, participantId, participantName } = req.body;
 
+        if (!meetingId || !meetingName || !department || !participantId || !participantName) {
+            await session.abortTransaction();
+            res.status(400).json({ error: 'Missing required fields' });
+            return
+        }
+
+        const participant = await Participant.findById(participantId).session(session);
+        if (!participant) {
+            await session.abortTransaction();
+            res.status(404).json({ error: 'Participant not found' });
+            return
+        }
         const historyEntry = new SelectionHistory({
             meetingId,
             meetingName,
@@ -39,6 +51,7 @@ export const createSelectionRecord: RequestHandler = async (req, res) => {
 
         await historyEntry.save({ session });
 
+        // Update participant's selection count and lastSelected date
         await Participant.findByIdAndUpdate(
             participantId,
             { $inc: { selectionCount: 1 }, $set: { lastSelected: new Date() } },
@@ -49,6 +62,7 @@ export const createSelectionRecord: RequestHandler = async (req, res) => {
         res.status(201).json(historyEntry);
     } catch (error) {
         await session.abortTransaction();
+        console.error('Error in createSelectionRecord:', error); // Log the full error
         res.status(500).json({ error: 'Error creating selection record' });
     } finally {
         session.endSession();
