@@ -28,7 +28,7 @@ export const createSelectionRecord: RequestHandler = async (req, res) => {
     try {
         const { meetingId, meetingName, department, participantId, participantName } = req.body;
 
-        if (!meetingId || !meetingName || !department || !participantId || !participantName) {
+        if (!meetingId || !meetingName || !participantId || !participantName) {
             await session.abortTransaction();
             res.status(400).json({ error: 'Missing required fields' });
             return
