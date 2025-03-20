@@ -12,7 +12,7 @@ export interface ISelectionHistory extends Document {
 const SelectionHistorySchema: Schema = new Schema({
     meetingId: { type: Schema.Types.ObjectId, ref: 'Meeting', required: true },
     meetingName: { type: String, required: true },
-    department: { type: String, required: true },
+    department: { type: String, required: false },
     participantId: { type: Schema.Types.ObjectId, ref: 'Participant', required: true },
     participantName: { type: String, required: true },
     selectedAt: { type: Date, default: Date.now }
