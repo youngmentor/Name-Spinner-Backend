@@ -1,18 +1,72 @@
 import { Router, RequestHandler } from 'express';
 import Meeting from '../models/meeting';
 import Participant from "../models/participant";
+import SelectionRecord from '../models/SelectionRecord';
 import { Readable } from "stream";
 import csv from "csv-parser";
 import * as XLSX from "xlsx";
+import mongoose from 'mongoose';
 
 
 export const getAllMeetings: RequestHandler = async (req, res) => {
     try {
-        const filter = req.query.department ? { department: req.query.department } : {};
-        const meetings = await Meeting.find(filter).sort({ createdAt: -1 });
-        res.json(meetings);
+        const filter: any = {};
+
+        // Enhanced filtering options
+        if (req.query.department) filter.department = req.query.department;
+        if (req.query.status) filter.status = req.query.status;
+        if (req.query.teamId) filter.teamId = req.query.teamId;
+
+        // Pagination
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 50;
+        const skip = (page - 1) * limit;
+
+        const meetings = await Meeting.find(filter)
+            .populate('teamId', 'name color')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        // Get enhanced meeting data with statistics
+        const enhancedMeetings = await Promise.all(
+            meetings.map(async (meeting) => {
+                const [participantCount, recentSelections] = await Promise.all([
+                    Participant.countDocuments({ meetingId: meeting._id, isActive: true }),
+                    SelectionRecord.countDocuments({ meetingId: meeting._id })
+                ]);
+
+                return {
+                    ...meeting,
+                    participantCount,
+                    totalSelections: recentSelections,
+                    team: meeting.teamId ? {
+                        id: (meeting.teamId as any)._id,
+                        name: (meeting.teamId as any).name,
+                        color: (meeting.teamId as any).color
+                    } : null
+                };
+            })
+        );
+
+        const total = await Meeting.countDocuments(filter);
+
+        res.json({
+            meetings: enhancedMeetings,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
     } catch (error) {
-        res.status(500).json({ error: 'Error fetching meetings' });
+        console.error('Error fetching meetings:', error);
+        res.status(500).json({
+            error: 'Error fetching meetings',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
     }
 };
 
@@ -136,14 +190,65 @@ export const createMeeting: RequestHandler = async (req, res) => {
 
 export const getMeetingById: RequestHandler = async (req, res) => {
     try {
-        const meeting = await Meeting.findById(req.params.id);
+        const meeting = await Meeting.findById(req.params.id)
+            .populate('teamId', 'name color description');
+
         if (!meeting) {
             res.status(404).json({ error: 'Meeting not found' });
             return;
         }
-        res.json(meeting);
+
+        // Get enhanced statistics
+        const [participantCount, recentSelections, totalSelections] = await Promise.all([
+            Participant.countDocuments({ meetingId: meeting._id, isActive: true }),
+            SelectionRecord.find({ meetingId: meeting._id })
+                .sort({ selectedAt: -1 })
+                .limit(5)
+                .populate('participantId', 'name department'),
+            SelectionRecord.countDocuments({ meetingId: meeting._id })
+        ]);
+
+        // Calculate average selection duration
+        const avgDurationResult = await SelectionRecord.aggregate([
+            { $match: { meetingId: new mongoose.Types.ObjectId(meeting._id as string) } },
+            { $match: { selectionDuration: { $exists: true, $ne: null } } },
+            { $group: { _id: null, avg: { $avg: '$selectionDuration' } } }
+        ]);
+
+        const response = {
+            ...meeting.toObject(),
+            participantCount,
+            totalSelections,
+            recentSelections: recentSelections.map(sel => ({
+                id: sel._id,
+                participantName: sel.participantName,
+                department: sel.department,
+                selectedAt: sel.selectedAt,
+                participant: sel.participantId ? {
+                    name: (sel.participantId as any).name,
+                    department: (sel.participantId as any).department
+                } : null
+            })),
+            statistics: {
+                ...meeting.statistics,
+                totalSelections,
+                averageSelectionDuration: avgDurationResult[0]?.avg || 0
+            },
+            team: meeting.teamId ? {
+                id: (meeting.teamId as any)._id,
+                name: (meeting.teamId as any).name,
+                color: (meeting.teamId as any).color,
+                description: (meeting.teamId as any).description
+            } : null
+        };
+
+        res.json(response);
     } catch (error) {
-        res.status(500).json({ error: 'Error fetching meeting' });
+        console.error('Error fetching meeting:', error);
+        res.status(500).json({
+            error: 'Error fetching meeting',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
     }
 };
 
