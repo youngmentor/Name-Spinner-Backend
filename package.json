@@ -6,6 +6,7 @@
     "start": "node dist/server.js",
     "dev": "nodemon server.ts",
     "build": "tsc",
+    "postbuild": "echo 'Build completed successfully - TypeScript compiled to dist/'",
     "clean": "node scripts/clean-build.js",
     "clean:bash": "./scripts/clean-build.sh",
     "clean:build": "npm run clean && npm run build",

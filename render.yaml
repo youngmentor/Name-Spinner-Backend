@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: name-spinner-backend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: $PORT
+      - key: MONGODB_URI
+        fromDatabase:
+          name: mongodb-uri
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_URL
+        value: redis://localhost:6379
+      - key: FILE_UPLOAD_LIMIT
+        value: 10MB
+      - key: RATE_LIMIT_REQUESTS
+        value: 100
+      - key: RATE_LIMIT_WINDOW
+        value: 15
+      - key: EXPORT_CLEANUP_DAYS
+        value: 7
+    scaling:
+      minInstances: 1
+      maxInstances: 3

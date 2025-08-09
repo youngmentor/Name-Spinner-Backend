@@ -24,7 +24,7 @@ import { resolveOrganization, authenticateUser } from './src/middleware/multiTen
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT || '5000', 10);
 const MONGODB_URI = process.env.MONGODB_URI;
 
 app.use(helmet());
@@ -146,11 +146,24 @@ process.on('SIGINT', async () => {
 async function startServer() {
   await initializeDatabase();
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📚 API Documentation available at http://localhost:${PORT}/api`);
     console.log(`💚 Health check available at http://localhost:${PORT}/api/health`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
+
+  // Handle server startup errors
+  server.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${PORT} is already in use`);
+      process.exit(1);
+    }
+    console.error('❌ Server error:', error);
+    process.exit(1);
+  });
+
+  return server;
 }
 
 startServer().catch(error => {
